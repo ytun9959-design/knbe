@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Ruijie Voucher Scanner v18.3 - SKY BLUE EDITION (DUAL MODE)
+Ruijie Voucher Scanner v18.4 - SKY BLUE EDITION (DUAL COMPACT UI)
 - Premium Animated UI Design
-- Dual Code Display (Left & Right)
+- Dual Code Display (Left & Right simultaneous)
 - Slow & Steady to bypass server rate limits
 """
 
@@ -35,7 +35,7 @@ from rich.box import HEAVY, ROUNDED, DOUBLE, MINIMAL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ==========================================
-# ⚙️ SLOW & STEADY TUNING (DUAL WORKERS)
+# ⚙️ SLOW & STEADY TUNING
 # ==========================================
 CONCURRENCY = 2           # ကုဒ် ၂ ခု တစ်ပြိုင်နက်တည်း စစ်မယ်
 TIMEOUT = 8
@@ -54,9 +54,6 @@ OUI_POOL = [
     "3C:2E:F9", "F0:18:98", "8C:85:90", "BC:92:6B", "D0:81:7A",
 ]
 
-# ==========================================
-# 🔐 SINGLE FILE LICENSE SYSTEM
-# ==========================================
 SECRET_KEY = b"RuijieScanner_Secret_2024!@#"
 LICENSE_FILE = ".rj_license"
 
@@ -76,10 +73,7 @@ def check_license():
         except Exception:
             pass
 
-    console.print(Panel(
-        Align.center(Text.assemble(("🔒 ", "bold red"), ("ACTIVATION REQUIRED", "bold white on red"))),
-        border_style="red", box=DOUBLE
-    ))
+    console.print(Panel(Align.center(Text.assemble(("🔒 ", "bold red"), ("ACTIVATION REQUIRED", "bold white on red"))), border_style="red", box=DOUBLE))
     user_key = input("[bold cyan]>> Enter your Key: [/bold cyan]").strip()
 
     try:
@@ -177,10 +171,9 @@ class VoucherScanner:
         self._state = {
             'total': 0, 'checked': 0, 'speed': 0, 'percentage': 0,
             'elapsed': '00:00:00', 'found': [], 'valid': [], 'dead': [],
-            'status': 'Initializing...', 'session': 'None', 
+            'status': 'Initializing...', 
             'current_code_1': '----', 'current_code_2': '----',
-            'sid_pool': 0, 'workers': 0, 'proxies': 0,
-            'hits_rate': 0.0, 'eta': '--:--:--'
+            'sid_pool': 0, 'workers': 0,
         }
 
         self.params = {
@@ -215,55 +208,58 @@ class VoucherScanner:
         elif self.mode == "mix": return ''.join(random.choices(string.ascii_lowercase + string.digits, k=self.length))
         return "0" * self.length
 
+    # ==========================================
+    # 🎨 COMPACT UI LAYOUT
+    # ==========================================
     def make_layout(self):
         s = self._state
         layout = Layout()
+        
+        # UI အပိုင်းတွေကို ပိုပြီး ကျစ်လျစ်အောင် လျှော့ချထားတယ်
         layout.split_column(
-            Layout(name="header", size=5),
-            Layout(name="stats", size=4),
-            Layout(name="progress", size=4),
-            Layout(name="middle", size=4),
+            Layout(name="header", size=3),
+            Layout(name="stats", size=3),
+            Layout(name="progress", size=3),
+            Layout(name="codes", size=3),
             Layout(name="hits", ratio=1),
         )
-        
-        # 🔥 UI ကို နှစ်ခြမ်းခွဲမယ် (Code 1 နဲ့ Code 2)
-        layout["middle"].split_row(
-            Layout(name="current_1", ratio=1), 
-            Layout(name="current_2", ratio=1),
-            Layout(name="info", ratio=1)
-        )
 
-        header_text = Text()
-        header_text.append("☁️ S K Y   B L U E   S C A N N E R ☁️\n", style="bold white on sky_blue1")
-        header_text.append("Ruijie Voucher Scanner v18.3 - DUAL MODE\n", style="bold cyan")
-        layout["header"].update(Panel(Align.center(header_text), border_style="sky_blue1", box=DOUBLE))
+        # 1. Header
+        header_text = Text("☁️ SKY BLUE SCANNER v18.4 - DUAL ☁️", style="bold white on sky_blue1", justify="center")
+        layout["header"].update(Panel(header_text, border_style="sky_blue1", box=ROUNDED))
 
+        # 2. Stats
         speed = s['speed']
-        speed_style = "bold green" if speed >= 100 else ("bold yellow" if speed >= 50 else "bold red")
-        stats_table = Table.grid(padding=(0, 1), expand=True)
+        speed_style = "bold green" if speed >= 100 else "bold red"
+        stats_table = Table.grid(padding=0, expand=True)
         for _ in range(4): stats_table.add_column(ratio=1)
         stats_table.add_row(
-            Panel(Align.center(Text.assemble(("⚡ SPEED\n", "dim"), (f"{speed:,}/min", speed_style))), border_style="yellow", box=ROUNDED),
-            Panel(Align.center(Text.assemble(("📊 CHECKED\n", "dim"), (f"{s['checked']:,}", "bold cyan"))), border_style="cyan", box=ROUNDED),
-            Panel(Align.center(Text.assemble(("🎯 HITS\n", "dim"), (f"{len(s['found']) + len(s['valid'])}", "bold green"))), border_style="green", box=ROUNDED),
-            Panel(Align.center(Text.assemble(("⏱️ ELAPSED\n", "dim"), (s['elapsed'], "bold magenta"))), border_style="magenta", box=ROUNDED),
+            Text.assemble(("⚡ ", ""), (f"{speed}/min", speed_style), justify="center"),
+            Text.assemble(("📊 ", ""), (f"{s['checked']}", "bold cyan"), justify="center"),
+            Text.assemble(("🎯 ", ""), (f"{len(s['found']) + len(s['valid'])}", "bold green"), justify="center"),
+            Text.assemble(("⏱️ ", ""), (s['elapsed'], "bold magenta"), justify="center"),
         )
-        layout["stats"].update(stats_table)
+        layout["stats"].update(Panel(stats_table, border_style="dim", box=MINIMAL))
 
+        # 3. Progress
         pct = s['percentage']
-        bar = "█" * int(30 * pct / 100) + "░" * (30 - int(30 * pct / 100))
-        progress_text = Text()
-        progress_text.append(f"[{bar}] {pct:.2f}%\n", style="bold cyan")
-        progress_text.append(f"Status: {s['status']} | SID Pool: {s['sid_pool']}", style="dim")
-        layout["progress"].update(Panel(Align.center(progress_text), title="⚙️ PROGRESS", border_style="sky_blue1", box=HEAVY))
+        progress_text = Text.assemble(
+            (f"[{pct:.1f}%] ", "bold cyan"), 
+            (f"Status: {s['status']} | Pool: {s['sid_pool']}", "dim")
+        )
+        layout["progress"].update(Panel(progress_text, border_style="dim", box=MINIMAL))
 
-        # 🔥 ကုဒ် ၂ ခုကို သီးသန့် ပြမယ်
-        layout["current_1"].update(Panel(Align.center(Text.assemble(("🔍 CODE 1\n", "dim"), (s['current_code_1'], "bold white on sky_blue1"))), border_style="cyan", box=ROUNDED))
-        layout["current_2"].update(Panel(Align.center(Text.assemble(("🔍 CODE 2\n", "dim"), (s['current_code_2'], "bold white on sky_blue1"))), border_style="cyan", box=ROUNDED))
-        
-        info_text = Text.assemble(("Mode: ", "dim"), (self.mode.upper(), "cyan"), (" | Len: ", "dim"), (str(self.length), "yellow"), ("\nHost: ", "dim"), (self._host()[:15], "green"))
-        layout["info"].update(Panel(Align.center(info_text), title="ℹ️ INFO", border_style="blue", box=ROUNDED))
+        # 4. Codes (ဘေးချင်းယှဉ် ကုဒ် ၂ ခု)
+        codes_table = Table.grid(padding=(0, 1), expand=True)
+        codes_table.add_column(ratio=1, justify="center")
+        codes_table.add_column(ratio=1, justify="center")
+        codes_table.add_row(
+            Text.assemble(("1️⃣ ", ""), (s['current_code_1'], "bold white on blue")),
+            Text.assemble(("2️⃣ ", ""), (s['current_code_2'], "bold white on blue")),
+        )
+        layout["codes"].update(Panel(codes_table, title="[dim]Scanning Codes[/dim]", border_style="cyan", box=ROUNDED))
 
+        # 5. Hits Dashboard
         hits_table = Table(show_header=True, header_style="bold white on sky_blue1", expand=True, box=MINIMAL)
         hits_table.add_column("TYPE", width=8, justify="center")
         hits_table.add_column("VOUCHER", justify="center")
@@ -273,7 +269,7 @@ class VoucherScanner:
         for v, t, _url, tl in s['found']: all_hits.append(("FOUND", v, tl))
         for v, t, tl in s['valid']: all_hits.append(("VALID", v, tl))
         
-        for kind, v, tl in all_hits[-12:]:
+        for kind, v, tl in all_hits[-15:]: # နေရာပိုရအောင် ၁၅ ခုအထိ ပြမယ်
             style = "bold green" if kind == "FOUND" else "bold cyan"
             hits_table.add_row(f"[{style}]{kind}[/]", v, tl or "-")
 
@@ -339,7 +335,10 @@ class VoucherScanner:
                 pass
             await asyncio.sleep(SID_FETCH_SLEEP)
 
-    async def scan_worker(self, session):
+    # ==========================================
+    # 🔥 DUAL SCAN WORKER (တစ်ခုနဲ့တစ်ခု မရောအောင် ခွဲထားတယ်)
+    # ==========================================
+    async def scan_worker(self, session, worker_id):
         while not self._stop:
             try:
                 try:
@@ -355,11 +354,10 @@ class VoucherScanner:
                     continue
 
                 self._state['workers'] += 1
-                self._state['session'] = sid_data['sid']
                 self._state['status'] = "Scanning..."
 
-                # 🔥 Worker အလိုက် Code 1 သို့မဟုတ် Code 2 မှာ ပြမယ်
-                if self._state['workers'] % 2 == 1:
+                # Worker 1 က Code 1 မှာ၊ Worker 2 က Code 2 မှာ သီးသန့်ပြမယ်
+                if worker_id == 1:
                     self._state['current_code_1'] = voucher
                 else:
                     self._state['current_code_2'] = voucher
@@ -419,7 +417,7 @@ class VoucherScanner:
                 if not self._stop:
                     await self.voucher_queue.put(self.generate_voucher())
 
-                # 🔥 0.5 စက္ကန့် စောင့်မယ် (Server ကို မပိတ်ဆို့ဖို့)
+                # ကုဒ်တစ်ခုစစ်ပြီးတိုင်း ခဏနားမယ်
                 await asyncio.sleep(REQUEST_DELAY)
 
             except asyncio.CancelledError:
@@ -443,7 +441,12 @@ class VoucherScanner:
         ui_task = asyncio.create_task(self._ui_loop())
 
         sid_tasks = [asyncio.create_task(self.sid_fetcher(session)) for _ in range(SID_FETCHER_COUNT)]
-        scan_tasks = [asyncio.create_task(self.scan_worker(session)) for _ in range(CONCURRENCY)]
+        
+        # Worker 1 နဲ့ Worker 2 ကို သီးသန့် ခွဲထားတယ်
+        scan_tasks = [
+            asyncio.create_task(self.scan_worker(session, worker_id=1)),
+            asyncio.create_task(self.scan_worker(session, worker_id=2))
+        ]
 
         start_time = time.time()
         while self._state['checked'] < total_codes and not self._stop:
