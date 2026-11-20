@@ -353,9 +353,10 @@ class VoucherScanner:
     def make_layout(self):
         s = self._state
         layout = Layout()
+        # Header size ကို နည်းနည်းတိုးပြီး Logo ထည့်ထားပါတယ်
         layout.split_column(Layout(name="header", size=6), Layout(name="live", size=3), Layout(name="logs", ratio=1), Layout(name="hits", ratio=1))
         
-        # 🌟 KENOBE LOGO & CYBERPUNK DESIGN (UI ဒီဇိုင်းအတိုင်း)
+        # 🌟 KENOBE LOGO & CYBERPUNK DESIGN
         logo = Text()
         logo.append(" ⚡ K E N O B E ⚡ \n", style="bold yellow on red")
         logo.append("RUIJIE SCANNER v17.0 - OVERLORD\n", style="bold cyan")
@@ -471,3 +472,4 @@ class VoucherScanner:
                                 sid = q.get('sessionId', [None])[0]
                                 sign = q.get('sign', [None])[0]
                                 ts = q.get('timestamp', [None])[0]
+                    except: pass
