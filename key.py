@@ -36,7 +36,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # ==========================================
 # 🔐 SINGLE FILE LICENSE SYSTEM
 # ==========================================
-SECRET_KEY = b"RuijieScanner_Secret_2024!@#"  # ⚠️ ဒီနေရာကို သင့်စိတ်ကြိုက် ပြောင်းထားနိုင်ပါတယ်
+SECRET_KEY = b"RuijieScanner_Secret_2024!@#"  
 LICENSE_FILE = ".rj_license"
 
 DURATIONS = {
@@ -353,10 +353,8 @@ class VoucherScanner:
     def make_layout(self):
         s = self._state
         layout = Layout()
-        # Header size ကို နည်းနည်းတိုးပြီး Logo ထည့်ထားပါတယ်
         layout.split_column(Layout(name="header", size=6), Layout(name="live", size=3), Layout(name="logs", ratio=1), Layout(name="hits", ratio=1))
         
-        # 🌟 KENOBE LOGO & CYBERPUNK DESIGN
         logo = Text()
         logo.append(" ⚡ K E N O B E ⚡ \n", style="bold yellow on red")
         logo.append("RUIJIE SCANNER v17.0 - OVERLORD\n", style="bold cyan")
@@ -420,7 +418,8 @@ class VoucherScanner:
         try:
             with open("found_ruijie.txt", "a") as f:
                 f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [{clock}] [{kind}] {voucher} {logon_url} {tl}\n")
-        except: pass
+        except Exception: 
+            pass
         if kind == "FOUND": self._state['found'].append((voucher, clock, logon_url, tl))
         elif kind == "VALID": self._state['valid'].append((voucher, clock, tl))
         elif kind in ("STA_LIMIT", "EXPIRED"): self._state['dead'].append((voucher, clock, kind))
@@ -461,7 +460,8 @@ class VoucherScanner:
                                 sid = q.get('sessionId', [None])[0]
                                 sign = q.get('sign', [None])[0]
                                 ts = q.get('timestamp', [None])[0]
-                    except: pass
+                    except Exception: 
+                        pass
 
                 if not sid:
                     try:
@@ -472,4 +472,5 @@ class VoucherScanner:
                                 sid = q.get('sessionId', [None])[0]
                                 sign = q.get('sign', [None])[0]
                                 ts = q.get('timestamp', [None])[0]
-                    except: pass
+                    except Exception: 
+                        pass
