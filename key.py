@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """
 Ruijie Voucher Scanner v17.0 - KENOBE EDITION
-- Premium UI Design
-- Single File License System
 """
 
 import os
